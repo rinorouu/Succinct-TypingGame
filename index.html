@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Typing Speed Test with zkSP1</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        #game-container {
+            margin-top: 30px;
+        }
+        #word-display {
+            font-size: 24px;
+            margin: 20px 0;
+            min-height: 30px;
+        }
+        #input-field {
+            font-size: 18px;
+            padding: 10px;
+            width: 300px;
+        }
+        #score-display {
+            font-size: 20px;
+            margin: 20px 0;
+        }
+        #leaderboard {
+            margin-top: 40px;
+            text-align: left;
+        }
+        .leaderboard-entry {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        #name-input {
+            padding: 10px;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Typing Speed Test with zkSP1</h1>
+    
+    <div id="setup-container">
+        <input type="text" id="name-input" placeholder="Enter your name">
+        <button id="start-button">Start Game</button>
+    </div>
+    
+    <div id="game-container" style="display: none;">
+        <div id="word-display"></div>
+        <input type="text" id="input-field" autocomplete="off">
+        <div id="score-display">Score: 0</div>
+        <button id="submit-button">Submit Score</button>
+    </div>
+    
+    <div id="leaderboard">
+        <h2>Leaderboard (zk-verified)</h2>
+        <div id="leaderboard-entries"></div>
+    </div>
+    
+    <script src="./wasm.js"></script>
+    <script>
+        async function init() {
+            await wasm_bindgen();
+            const game = new wasm_bindgen.TypingGame();
+            
+            // Setup elements
+            const nameInput = document.getElementById('name-input');
+            const startButton = document.getElementById('start-button');
+            const gameContainer = document.getElementById('game-container');
+            const wordDisplay = document.getElementById('word-display');
+            const inputField = document.getElementById('input-field');
+            const scoreDisplay = document.getElementById('score-display');
+            const submitButton = document.getElementById('submit-button');
+            const leaderboardEntries = document.getElementById('leaderboard-entries');
+            
+            // Leaderboard (simplified in-memory version)
+            let leaderboard = [];
+            
+            // Start game
+            startButton.addEventListener('click', () => {
+                const playerName = nameInput.value.trim();
+                if (playerName === '') {
+                    alert('Please enter your name');
+                    return;
+                }
+                
+                game.set_player_name(playerName);
+                game.start_game();
+                
+                // Update UI
+                document.getElementById('setup-container').style.display = 'none';
+                gameContainer.style.display = 'block';
+                wordDisplay.textContent = game.get_current_word();
+                inputField.focus();
+            });
+            
+            // Handle typing input
+            inputField.addEventListener('input', (e) => {
+                const correct = game.handle_input(e.target.value);
+                if (correct) {
+                    e.target.value = '';
+                    wordDisplay.textContent = game.get_current_word();
+                    scoreDisplay.textContent = `Score: ${game.get_score()}`;
+                }
+            });
+            
+            // Submit score
+            submitButton.addEventListener('click', () => {
+                const result = game.generate_result();
+                const resultData = JSON.parse(result);
+                
+                // Add to leaderboard
+                leaderboard.push({
+                    player_name: resultData.player_name,
+                    score: resultData.score,
+                    proof: resultData.proof
+                });
+                
+                // Sort leaderboard
+                leaderboard.sort((a, b) => b.score - a.score);
+                
+                // Update leaderboard display
+                updateLeaderboard(leaderboard);
+                
+                // Reset game
+                gameContainer.style.display = 'none';
+                document.getElementById('setup-container').style.display = 'block';
+                inputField.value = '';
+            });
+            
+            function updateLeaderboard(entries) {
+                leaderboardEntries.innerHTML = '';
+                entries.slice(0, 10).forEach(entry => {
+                    const entryEl = document.createElement('div');
+                    entryEl.className = 'leaderboard-entry';
+                    entryEl.innerHTML = `
+                        <strong>${entry.player_name}</strong>: ${entry.score} points
+                        <small>(proof: ${entry.proof.slice(0, 10)}...)</small>
+                    `;
+                    leaderboardEntries.appendChild(entryEl);
+                });
+            }
+        }
+        
+        init().catch(console.error);
+    </script>
+</body>
+</html>
